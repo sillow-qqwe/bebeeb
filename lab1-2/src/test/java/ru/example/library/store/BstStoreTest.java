@@ -82,7 +82,7 @@ class BstStoreTest {
         assertNull(failure.get());
         assertEquals(threadCount * valuesPerThread, tree.size());
         for (int value = 0; value < threadCount * valuesPerThread; value++) {
-            assertEquals(value, tree.findByKey(value));
+            assertEquals(Integer.valueOf(value), tree.findByKey(value));
         }
     }
 
