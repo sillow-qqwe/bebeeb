@@ -24,6 +24,14 @@ public final class BstCanvasView extends Canvas {
     public void render(List<NodeSnapshot> snapshot, List<String> highlighted) {
         nodes = List.copyOf(snapshot);
         highlightedTitles = List.copyOf(highlighted);
+        int maxDepth = 0;
+        int[] depths = new int[nodes.size()];
+        for (int i = 0; i < nodes.size(); i++) {
+            int parent = nodes.get(i).parentIndex();
+            depths[i] = parent < 0 ? 0 : depths[parent] + 1;
+            maxDepth = Math.max(maxDepth, depths[i]);
+        }
+        setHeight(Math.max(560, 90 + (maxDepth + 1) * 72));
         draw();
     }
 
@@ -40,9 +48,9 @@ public final class BstCanvasView extends Canvas {
         Map<Integer, Integer> depths = new HashMap<>();
         Map<Integer, Double> xPositions = new HashMap<>();
         int[] cursor = {0};
-        assignPositions(0, 0, depths, xPositions, cursor, w);
-        double maxDepth = depths.values().stream().mapToInt(Integer::intValue).max().orElse(0);
-        double verticalGap = Math.max(72, (h - 70) / (maxDepth + 1));
+        Map<Integer, int[]> children = buildChildren();
+        assignPositions(0, 0, depths, xPositions, cursor, w, children);
+        double verticalGap = 72;
 
         g.setStroke(Color.web("#94a3b8")); g.setLineWidth(1.5);
         for (int i = 0; i < nodes.size(); i++) {
@@ -68,23 +76,27 @@ public final class BstCanvasView extends Canvas {
         }
     }
 
+    private Map<Integer, int[]> buildChildren() {
+        Map<Integer, int[]> children = new HashMap<>();
+        for (int i = 0; i < nodes.size(); i++) children.put(i, new int[]{-1, -1});
+        for (int i = 0; i < nodes.size(); i++) {
+            NodeSnapshot node = nodes.get(i);
+            if (node.parentIndex() >= 0) {
+                children.get(node.parentIndex())[node.isLeftChild() ? 0 : 1] = i;
+            }
+        }
+        return children;
+    }
+
     private void assignPositions(int index, int depth, Map<Integer, Integer> depths,
-                                 Map<Integer, Double> xPositions, int[] cursor, double width) {
+                                 Map<Integer, Double> xPositions, int[] cursor, double width,
+                                 Map<Integer, int[]> children) {
         if (index < 0 || index >= nodes.size()) return;
-        // Snapshot is preorder; derive child indexes by parentIndex and side.
-        int left = child(index, true), right = child(index, false);
-        assignPositions(left, depth + 1, depths, xPositions, cursor, width);
+        int[] child = children.get(index);
+        assignPositions(child[0], depth + 1, depths, xPositions, cursor, width, children);
         depths.put(index, depth);
         xPositions.put(index, (cursor[0] + 1) * width / (nodes.size() + 1));
         cursor[0]++;
-        assignPositions(right, depth + 1, depths, xPositions, cursor, width);
-    }
-
-    private int child(int parent, boolean left) {
-        for (int i = parent + 1; i < nodes.size(); i++) {
-            NodeSnapshot candidate = nodes.get(i);
-            if (candidate.parentIndex() == parent && candidate.isLeftChild() == left) return i;
-        }
-        return -1;
+        assignPositions(child[1], depth + 1, depths, xPositions, cursor, width, children);
     }
 }
