@@ -170,18 +170,25 @@ public final class BstStore<K extends Comparable<K>, T> {
 
     /** Снимок узлов в preorder-порядке; ссылки на внутренние узлы не раскрываются. */
     public synchronized List<NodeSnapshot> snapshot() {
+        return snapshot(value -> String.valueOf(extractKey(value)));
+    }
+
+    /** Снимок с пользовательской подписью узла, например исходным названием сущности. */
+    public synchronized List<NodeSnapshot> snapshot(Function<? super T, String> labelExtractor) {
+        Objects.requireNonNull(labelExtractor, "labelExtractor");
         List<NodeSnapshot> result = new ArrayList<>(size);
-        appendSnapshot(root, -1, false, result);
+        appendSnapshot(root, -1, false, result, labelExtractor);
         return List.copyOf(result);
     }
 
     private void appendSnapshot(Node<K, T> node, int parentIndex, boolean left,
-                                List<NodeSnapshot> result) {
+                                List<NodeSnapshot> result,
+                                Function<? super T, String> labelExtractor) {
         if (node == null) return;
         int index = result.size();
-        result.add(new NodeSnapshot(String.valueOf(node.key), parentIndex, left));
-        appendSnapshot(node.left, index, true, result);
-        appendSnapshot(node.right, index, false, result);
+        result.add(new NodeSnapshot(labelExtractor.apply(node.value), parentIndex, left));
+        appendSnapshot(node.left, index, true, result, labelExtractor);
+        appendSnapshot(node.right, index, false, result, labelExtractor);
     }
 
     public synchronized List<T> inOrderValues() {
