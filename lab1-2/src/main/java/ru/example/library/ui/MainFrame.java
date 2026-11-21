@@ -79,7 +79,29 @@ public class MainFrame extends BorderPane {
         ToolBar toolbar = new ToolBar(addButton, editButton, deleteButton,
                 new Separator(), new Label("Поиск:"), searchField, searchButton,
                 new Separator(), generateButton, benchmarkButton, loadButton, saveButton);
-        setTop(toolbar);
+
+        TextField rangeFromField = new TextField();
+        rangeFromField.setPromptText("От названия");
+        rangeFromField.setPrefColumnCount(14);
+        TextField rangeToField = new TextField();
+        rangeToField.setPromptText("До названия");
+        rangeToField.setPrefColumnCount(14);
+        Button rangeButton = new Button("Найти в диапазоне");
+        rangeButton.setOnAction(event ->
+                onRangeSearch(rangeFromField.getText(), rangeToField.getText()));
+
+        TextField lastCountField = new TextField();
+        lastCountField.setPromptText("K");
+        lastCountField.setPrefColumnCount(4);
+        Button lastButton = new Button("Последние K по алфавиту");
+        lastButton.setOnAction(event -> onLastK(lastCountField.getText()));
+
+        HBox extraOperations = new HBox(8,
+                new Label("Дополнительные операции:"),
+                rangeFromField, rangeToField, rangeButton,
+                new Separator(), new Label("Количество:"), lastCountField, lastButton);
+        extraOperations.setPadding(new Insets(6, 0, 6, 0));
+        setTop(new VBox(4, toolbar, extraOperations));
 
         Label tableLabel = new Label("Каталог книг (" + store.size() + ")");
         VBox tableBox = new VBox(6, tableLabel, table);
@@ -156,6 +178,50 @@ public class MainFrame extends BorderPane {
             table.getSelectionModel().select(found);
             table.scrollTo(found);
         }
+    }
+
+    private void onRangeSearch(String from, String to) {
+        if (from == null || from.isBlank() || to == null || to.isBlank()) {
+            showAlert(Alert.AlertType.INFORMATION, "Поиск по диапазону",
+                    "Введите обе границы диапазона.");
+            return;
+        }
+        try {
+            List<Book> result = store.findInTitleRange(from, to);
+            List<String> highlighted = result.stream().map(Book::getTitle).toList();
+            refreshFromStore(highlighted);
+            showAdditionalResults("Результат поиска по диапазону", result,
+                    "Диапазон: «" + from.trim() + "» — «" + to.trim() + "»");
+        } catch (IllegalArgumentException ex) {
+            showError(ex.getMessage());
+        }
+    }
+
+    private void onLastK(String rawCount) {
+        final int count;
+        try {
+            count = Integer.parseInt(rawCount == null ? "" : rawCount.trim());
+            if (count < 0) throw new NumberFormatException();
+        } catch (NumberFormatException ex) {
+            showError("Введите неотрицательное целое число K.");
+            return;
+        }
+        List<Book> result = store.lastAlphabetically(count);
+        List<String> highlighted = result.stream().map(Book::getTitle).toList();
+        refreshFromStore(highlighted);
+        showAdditionalResults("Последние K книг по алфавиту", result,
+                "Запрошено: " + count + ", найдено: " + result.size()
+                        + ". Порядок: от большего ключа к меньшему.");
+    }
+
+    private void showAdditionalResults(String title, List<Book> result, String details) {
+        StringBuilder message = new StringBuilder(details)
+                .append("\\n\\nНайдено книг: ").append(result.size());
+        for (Book book : result) {
+            message.append("\\n• ").append(book.getTitle())
+                    .append(" — ").append(book.getAuthor());
+        }
+        showAlert(Alert.AlertType.INFORMATION, title, message.toString());
     }
 
     private void onDelete() {
