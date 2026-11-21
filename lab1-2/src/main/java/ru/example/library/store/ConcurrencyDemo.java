@@ -4,9 +4,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Консольная демонстрация гонки данных и защиты конкурентного доступа к BST.
+ * Console demo of a data race and protection of concurrent BST access.
  *
- * Запуск: ru.example.library.store.ConcurrencyDemo
+ * Run: ru.example.library.store.ConcurrencyDemo
  */
 public final class ConcurrencyDemo {
     private static final int THREAD_COUNT = 4;
@@ -17,7 +17,7 @@ public final class ConcurrencyDemo {
 
     public static void main(String[] args) {
         int unsafeSize = demonstrateLostNode();
-        System.out.println("Незащищённое BST: ожидалось 3 узла, получено " + unsafeSize);
+        System.out.println("Unsafe BST: expected 3 nodes, got " + unsafeSize);
 
         BstStore<Integer, Integer> smallSafeTree = new BstStore<>(value -> value);
         smallSafeTree.add(10);
@@ -25,25 +25,25 @@ public final class ConcurrencyDemo {
                 () -> smallSafeTree.add(5),
                 () -> smallSafeTree.add(7)
         );
-        System.out.println("Синхронизированное BST: ожидалось 3 узла, получено "
+        System.out.println("Synchronized BST: expected 3 nodes, got "
                 + smallSafeTree.size());
 
         int expectedSize = THREAD_COUNT * VALUES_PER_THREAD;
         BstStore<Integer, Integer> stressTree = new BstStore<>(value -> value);
         writeConcurrently(stressTree);
-        System.out.println("Параллельная вставка в BstStore: ожидалось " + expectedSize
-                + " узлов, получено " + stressTree.size());
+        System.out.println("Concurrent insertion into BstStore: expected " + expectedSize
+                + " nodes, got " + stressTree.size());
 
         if (unsafeSize != 2 || smallSafeTree.size() != 3
                 || stressTree.size() != expectedSize) {
-            throw new IllegalStateException("Результаты демонстрации не соответствуют ожиданиям");
+            throw new IllegalStateException("Demo results do not match expectations");
         }
-        System.out.println("Демонстрация завершена успешно.");
+        System.out.println("Demo completed successfully.");
     }
 
     /**
-     * Два потока одновременно вставляют разные значения в пустое левое поддерево.
-     * Оба успевают прочитать null до записи, поэтому последняя запись затирает первую.
+     * Two threads insert different values into the empty left subtree simultaneously.
+     * Both read null before either writes, so the last write overwrites the first one.
      */
     private static int demonstrateLostNode() {
         UnsafeIntBst tree = new UnsafeIntBst();
@@ -105,7 +105,7 @@ public final class ConcurrencyDemo {
         }
 
         if (failure.get() != null) {
-            throw new IllegalStateException("Ошибка конкурентной вставки", failure.get());
+            throw new IllegalStateException("Concurrent insertion failed", failure.get());
         }
     }
 
@@ -114,7 +114,7 @@ public final class ConcurrencyDemo {
             latch.await();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Поток был прерван", exception);
+            throw new IllegalStateException("Thread was interrupted", exception);
         }
     }
 
@@ -123,13 +123,13 @@ public final class ConcurrencyDemo {
             thread.join();
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException("Ожидание потока было прервано", exception);
+            throw new IllegalStateException("Interrupted while waiting for a thread", exception);
         }
     }
 
     /**
-     * Минимальная намеренно незащищённая BST только для демонстрации гонки.
-     * В рабочем коде вместо неё используется синхронизированный BstStore.
+     * Minimal intentionally unprotected BST used only to demonstrate a data race.
+     * The synchronized BstStore is used in production code instead.
      */
     private static final class UnsafeIntBst {
         private static final class Node {
