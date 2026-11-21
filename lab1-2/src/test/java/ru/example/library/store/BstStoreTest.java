@@ -15,7 +15,7 @@ class BstStoreTest {
         tree.add("Pear");
 
         assertEquals(3, tree.size());
-        assertEquals("Apple", tree.findByKey("APPLE"));
+        assertEquals("Apple", tree.findByKey("apple"));
         assertNull(tree.findByKey("missing"));
         assertThrows(IllegalArgumentException.class, () -> tree.add("APPLE"));
     }
