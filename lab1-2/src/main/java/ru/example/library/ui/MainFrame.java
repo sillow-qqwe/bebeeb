@@ -19,6 +19,7 @@ import ru.example.library.model.AntiqueBook;
 import ru.example.library.model.Book;
 import ru.example.library.model.Textbook;
 import ru.example.library.store.BstBookStore;
+import ru.example.library.store.BstBenchmark;
 import ru.example.library.store.BookGenerator;
 
 import java.io.File;
@@ -69,6 +70,7 @@ public class MainFrame extends BorderPane {
         Button loadButton = new Button("Загрузить CSV");
         Button saveButton = new Button("Сохранить CSV");
         Button generateButton = new Button("Сгенерировать книги");
+        Button benchmarkButton = new Button("Замерить BST");
         searchField.setPromptText("Название для поиска");
         searchField.setPrefColumnCount(16);
         Button searchButton = new Button("Найти");
@@ -76,7 +78,7 @@ public class MainFrame extends BorderPane {
         searchField.setOnAction(event -> onSearch());
         ToolBar toolbar = new ToolBar(addButton, editButton, deleteButton,
                 new Separator(), new Label("Поиск:"), searchField, searchButton,
-                new Separator(), generateButton, loadButton, saveButton);
+                new Separator(), generateButton, benchmarkButton, loadButton, saveButton);
         setTop(toolbar);
 
         Label tableLabel = new Label("Каталог книг (" + store.size() + ")");
@@ -100,6 +102,7 @@ public class MainFrame extends BorderPane {
         loadButton.setOnAction(event -> onLoad());
         saveButton.setOnAction(event -> saveWithChooser());
         generateButton.setOnAction(event -> onGenerate());
+        benchmarkButton.setOnAction(event -> onBenchmark());
     }
 
     private void installHandlers() {
@@ -241,6 +244,17 @@ public class MainFrame extends BorderPane {
             showAlert(Alert.AlertType.INFORMATION, "Генерация завершена",
                     "Добавлено книг: " + added + "\nВсего в каталоге: " + store.size());
         });
+    }
+
+    private void onBenchmark() {
+        Task<String> task = new Task<>() {
+            @Override protected String call() {
+                updateMessage("Выполняются замеры BST и TreeMap…");
+                return BstBenchmark.run();
+            }
+        };
+        showProgressTask("Замеры производительности", "Подготовка замеров…", task, () ->
+                showAlert(Alert.AlertType.INFORMATION, "Результаты замеров", task.getValue()));
     }
 
     private <T> void showProgressTask(String title, String message, Task<T> task, Runnable onSuccess) {
