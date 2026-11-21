@@ -99,7 +99,7 @@ public class MainFrame extends BorderPane {
         HBox extraOperations = new HBox(8,
                 new Label("Дополнительные операции:"),
                 rangeFromField, rangeToField, rangeButton,
-                new Separator(), new Label("Количество:"), lastCountField, lastButton);
+                new Separator(javafx.geometry.Orientation.VERTICAL), new Label("Количество:"), lastCountField, lastButton);
         extraOperations.setPadding(new Insets(6, 0, 6, 0));
         setTop(new VBox(4, toolbar, extraOperations));
 
@@ -216,9 +216,9 @@ public class MainFrame extends BorderPane {
 
     private void showAdditionalResults(String title, List<Book> result, String details) {
         StringBuilder message = new StringBuilder(details)
-                .append("\\n\\nНайдено книг: ").append(result.size());
+                .append("\n\nНайдено книг: ").append(result.size());
         for (Book book : result) {
-            message.append("\\n• ").append(book.getTitle())
+            message.append("\n• ").append(book.getTitle())
                     .append(" — ").append(book.getAuthor());
         }
         showAlert(Alert.AlertType.INFORMATION, title, message.toString());
