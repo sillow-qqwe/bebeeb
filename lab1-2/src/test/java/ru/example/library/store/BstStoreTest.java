@@ -3,6 +3,8 @@ package ru.example.library.store;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -46,6 +48,42 @@ class BstStoreTest {
         assertEquals("ALPHA", snapshot.get(1).title());
         assertThrows(UnsupportedOperationException.class,
                 () -> snapshot.add(new NodeSnapshot("X", -1, false)));
+    }
+
+    @Test
+    void supportsConcurrentWritesWithoutLosingValues() throws InterruptedException {
+        BstStore<Integer, Integer> tree = new BstStore<>(value -> value);
+        int threadCount = 4;
+        int valuesPerThread = 250;
+        CountDownLatch start = new CountDownLatch(1);
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread[] workers = new Thread[threadCount];
+
+        for (int threadIndex = 0; threadIndex < threadCount; threadIndex++) {
+            int firstValue = threadIndex * valuesPerThread;
+            workers[threadIndex] = new Thread(() -> {
+                try {
+                    start.await();
+                    for (int offset = 0; offset < valuesPerThread; offset++) {
+                        tree.add(firstValue + offset);
+                    }
+                } catch (Throwable error) {
+                    failure.compareAndSet(null, error);
+                }
+            });
+            workers[threadIndex].start();
+        }
+
+        start.countDown();
+        for (Thread worker : workers) {
+            worker.join();
+        }
+
+        assertNull(failure.get());
+        assertEquals(threadCount * valuesPerThread, tree.size());
+        for (int value = 0; value < threadCount * valuesPerThread; value++) {
+            assertEquals(value, tree.findByKey(value));
+        }
     }
 
     @Test
