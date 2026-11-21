@@ -56,7 +56,7 @@ public final class BstBookStore implements BookStore {
 
     @Override
     public List<NodeSnapshot> snapshot() {
-        return tree.snapshot();
+        return tree.snapshot(Book::getTitle);
     }
 
     /** Удаляет все узлы дерева, сохраняя сам объект хранилища. */
