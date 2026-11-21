@@ -4,13 +4,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Консольная демонстрация гонки данных и защиты конкурентного доступа.
+ * Консольная демонстрация гонки данных и защиты конкурентного доступа к BST.
  *
  * Запуск: ru.example.library.store.ConcurrencyDemo
- *
- * Для демонстрации потерянного обновления используется минимальный общий счётчик:
- * оба потока читают одно значение до того, как любой из них выполнит запись.
- * Затем отдельно проверяется конкурентная запись в настоящее BstStore.
  */
 public final class ConcurrencyDemo {
     private static final int THREAD_COUNT = 4;
@@ -20,60 +16,62 @@ public final class ConcurrencyDemo {
     }
 
     public static void main(String[] args) {
-        int unsafeResult = demonstrateLostUpdate();
-        System.out.println("Незащищённый счётчик: ожидалось 2, получено " + unsafeResult);
+        int unsafeSize = demonstrateLostNode();
+        System.out.println("Незащищённое BST: ожидалось 3 узла, получено " + unsafeSize);
 
-        SynchronizedCounter safeCounter = new SynchronizedCounter();
-        runTwoThreads(safeCounter::increment);
-        System.out.println("Синхронизированный счётчик: ожидалось 2, получено "
-                + safeCounter.value());
+        BstStore<Integer, Integer> smallSafeTree = new BstStore<>(value -> value);
+        smallSafeTree.add(10);
+        runTwoThreads(
+                () -> smallSafeTree.add(5),
+                () -> smallSafeTree.add(7)
+        );
+        System.out.println("Синхронизированное BST: ожидалось 3 узла, получено "
+                + smallSafeTree.size());
 
         int expectedSize = THREAD_COUNT * VALUES_PER_THREAD;
-        BstStore<Integer, Integer> tree = new BstStore<>(value -> value);
-        writeConcurrently(tree);
-        System.out.println("BstStore: ожидалось " + expectedSize
-                + " узлов, получено " + tree.size());
+        BstStore<Integer, Integer> stressTree = new BstStore<>(value -> value);
+        writeConcurrently(stressTree);
+        System.out.println("Параллельная вставка в BstStore: ожидалось " + expectedSize
+                + " узлов, получено " + stressTree.size());
 
-        if (unsafeResult != 1 || safeCounter.value() != 2 || tree.size() != expectedSize) {
+        if (unsafeSize != 2 || smallSafeTree.size() != 3
+                || stressTree.size() != expectedSize) {
             throw new IllegalStateException("Результаты демонстрации не соответствуют ожиданиям");
         }
         System.out.println("Демонстрация завершена успешно.");
     }
 
     /**
-     * Гарантированно воспроизводит lost update: оба потока считывают ноль,
-     * после чего независимо записывают единицу.
+     * Два потока одновременно вставляют разные значения в пустое левое поддерево.
+     * Оба успевают прочитать null до записи, поэтому последняя запись затирает первую.
      */
-    private static int demonstrateLostUpdate() {
-        final class UnsafeCounter {
-            private int value;
-            private final CountDownLatch bothThreadsRead = new CountDownLatch(2);
-            private final CountDownLatch allowWrites = new CountDownLatch(1);
+    private static int demonstrateLostNode() {
+        UnsafeIntBst tree = new UnsafeIntBst();
+        tree.addRoot(10);
 
-            private void increment() {
-                int observed = value;
-                bothThreadsRead.countDown();
-                await(allowWrites);
-                value = observed + 1;
-            }
-        }
+        CountDownLatch bothThreadsRead = new CountDownLatch(2);
+        CountDownLatch allowWrites = new CountDownLatch(1);
+        Thread first = new Thread(
+                () -> tree.insertLeftOfRoot(5, bothThreadsRead, allowWrites),
+                "unsafe-bst-writer-1"
+        );
+        Thread second = new Thread(
+                () -> tree.insertLeftOfRoot(7, bothThreadsRead, allowWrites),
+                "unsafe-bst-writer-2"
+        );
 
-        UnsafeCounter counter = new UnsafeCounter();
-        Thread first = new Thread(counter::increment, "unsafe-writer-1");
-        Thread second = new Thread(counter::increment, "unsafe-writer-2");
         first.start();
         second.start();
-
-        await(counter.bothThreadsRead);
-        counter.allowWrites.countDown();
+        await(bothThreadsRead);
+        allowWrites.countDown();
         join(first);
         join(second);
-        return counter.value;
+        return tree.size();
     }
 
-    private static void runTwoThreads(Runnable operation) {
-        Thread first = new Thread(operation, "safe-writer-1");
-        Thread second = new Thread(operation, "safe-writer-2");
+    private static void runTwoThreads(Runnable firstOperation, Runnable secondOperation) {
+        Thread first = new Thread(firstOperation, "safe-bst-writer-1");
+        Thread second = new Thread(secondOperation, "safe-bst-writer-2");
         first.start();
         second.start();
         join(first);
@@ -88,8 +86,8 @@ public final class ConcurrencyDemo {
         for (int threadIndex = 0; threadIndex < THREAD_COUNT; threadIndex++) {
             final int firstValue = threadIndex * VALUES_PER_THREAD;
             workers[threadIndex] = new Thread(() -> {
-                await(start);
                 try {
+                    await(start);
                     for (int offset = 0; offset < VALUES_PER_THREAD; offset++) {
                         int value = firstValue + offset;
                         tree.add(value);
@@ -129,15 +127,44 @@ public final class ConcurrencyDemo {
         }
     }
 
-    private static final class SynchronizedCounter {
-        private int value;
+    /**
+     * Минимальная намеренно незащищённая BST только для демонстрации гонки.
+     * В рабочем коде вместо неё используется синхронизированный BstStore.
+     */
+    private static final class UnsafeIntBst {
+        private static final class Node {
+            private final int value;
+            private Node left;
+            private Node right;
 
-        public synchronized void increment() {
-            value++;
+            private Node(int value) {
+                this.value = value;
+            }
         }
 
-        public synchronized int value() {
-            return value;
+        private Node root;
+
+        private void addRoot(int value) {
+            root = new Node(value);
+        }
+
+        private void insertLeftOfRoot(int value, CountDownLatch bothThreadsRead,
+                                      CountDownLatch allowWrites) {
+            Node observedChild = root.left;
+            bothThreadsRead.countDown();
+            await(allowWrites);
+            if (observedChild == null) {
+                root.left = new Node(value);
+            }
+        }
+
+        private int size() {
+            return count(root);
+        }
+
+        private int count(Node node) {
+            if (node == null) return 0;
+            return 1 + count(node.left) + count(node.right);
         }
     }
 }
