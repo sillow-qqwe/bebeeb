@@ -60,6 +60,19 @@ class BookSerializerTest {
     }
 
     @Test
+    void loadsPreparedJsonFixtureFromClasspath() throws IOException {
+        try (var input = getClass().getResourceAsStream("/catalog-v1.json")) {
+            assertNotNull(input);
+            Path file = tempDir.resolve("fixture.json");
+            Files.copy(input, file);
+            BookCatalogData loaded = json.load(file);
+            List<Book> books = BookDataMapper.fromData(loaded);
+            assertEquals(1, books.size());
+            assertEquals("Fixture book", books.get(0).getTitle());
+        }
+    }
+
+    @Test
     void jsonRejectsUnsupportedFormatVersion() throws IOException {
         Path file = tempDir.resolve("future.json");
         Files.writeString(file, "{\"formatVersion\":99,\"books\":[]}");
