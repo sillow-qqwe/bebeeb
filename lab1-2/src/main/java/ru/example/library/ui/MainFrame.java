@@ -15,6 +15,11 @@ import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import ru.example.library.io.CsvSerializer;
 import ru.example.library.io.DefaultCsvSerializer;
+import ru.example.library.io.BinaryBookSerializer;
+import ru.example.library.io.BookCatalogData;
+import ru.example.library.io.BookDataMapper;
+import ru.example.library.io.JsonBookSerializer;
+import ru.example.library.io.Serializer;
 import ru.example.library.model.AntiqueBook;
 import ru.example.library.model.Book;
 import ru.example.library.model.Textbook;
@@ -69,6 +74,10 @@ public class MainFrame extends BorderPane {
         Button addButton = new Button("Добавить");
         Button loadButton = new Button("Загрузить CSV");
         Button saveButton = new Button("Сохранить CSV");
+        Button importJsonButton = new Button("Импорт JSON");
+        Button exportJsonButton = new Button("Экспорт JSON");
+        Button importBinButton = new Button("Импорт BIN");
+        Button exportBinButton = new Button("Экспорт BIN");
         Button generateButton = new Button("Сгенерировать книги");
         Button benchmarkButton = new Button("Замерить BST");
         searchField.setPromptText("Название для поиска");
@@ -78,7 +87,8 @@ public class MainFrame extends BorderPane {
         searchField.setOnAction(event -> onSearch());
         ToolBar toolbar = new ToolBar(addButton, editButton, deleteButton,
                 new Separator(), new Label("Поиск:"), searchField, searchButton,
-                new Separator(), generateButton, benchmarkButton, loadButton, saveButton);
+                new Separator(), generateButton, benchmarkButton,
+                loadButton, saveButton, importJsonButton, exportJsonButton, importBinButton, exportBinButton);
 
         TextField rangeFromField = new TextField();
         rangeFromField.setPromptText("От названия");
@@ -123,6 +133,10 @@ public class MainFrame extends BorderPane {
         addButton.setOnAction(event -> onAdd());
         loadButton.setOnAction(event -> onLoad());
         saveButton.setOnAction(event -> saveWithChooser());
+        importJsonButton.setOnAction(event -> onLoadStructured(new JsonBookSerializer(), "JSON", "*.json"));
+        exportJsonButton.setOnAction(event -> onSaveStructured(new JsonBookSerializer(), "JSON", "*.json"));
+        importBinButton.setOnAction(event -> onLoadStructured(new BinaryBookSerializer(), "BIN", "*.bin"));
+        exportBinButton.setOnAction(event -> onSaveStructured(new BinaryBookSerializer(), "BIN", "*.bin"));
         generateButton.setOnAction(event -> onGenerate());
         benchmarkButton.setOnAction(event -> onBenchmark());
     }
@@ -272,6 +286,82 @@ public class MainFrame extends BorderPane {
             else showAlert(Alert.AlertType.WARNING, "Загрузка завершена с замечаниями",
                     summary + "\n\n" + String.join("\n", result.errors()));
         });
+    }
+
+    private void onLoadStructured(Serializer<BookCatalogData> selectedSerializer,
+                                  String format, String pattern) {
+        if (!confirmSaveOrDiscardChanges()) return;
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Import " + format + " catalog");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(format + " files", pattern));
+        File file = chooser.showOpenDialog(stage);
+        if (file == null) return;
+
+        Task<LoadedCatalog> task = new Task<>() {
+            @Override
+            protected LoadedCatalog call() throws Exception {
+                BookCatalogData data = selectedSerializer.load(file.toPath());
+                List<Book> loaded = BookDataMapper.fromData(data);
+                BstBookStore replacement = new BstBookStore();
+                List<String> errors = new ArrayList<>();
+                int accepted = 0;
+                for (Book book : loaded) {
+                    if (isCancelled()) throw new java.util.concurrent.CancellationException();
+                    try {
+                        replacement.add(book);
+                        accepted++;
+                    } catch (IllegalArgumentException ex) {
+                        errors.add("Skipped duplicate title '" + book.getTitle() + "': " + ex.getMessage());
+                    }
+                }
+                return new LoadedCatalog(replacement.inOrderBooks(), errors, accepted, loaded.size());
+            }
+        };
+        showProgressTask("Import " + format, "Reading catalog and building BST...", task, () -> {
+            LoadedCatalog result = task.getValue();
+            store.clear();
+            for (Book book : result.books()) store.add(book);
+            refreshFromStore(List.of());
+            unsavedChanges = false;
+            updateWindowTitle();
+            String summary = "Imported " + result.accepted() + " of " + result.total() + " books.";
+            if (result.errors().isEmpty()) {
+                showAlert(Alert.AlertType.INFORMATION, "Import complete", summary);
+            } else {
+                showAlert(Alert.AlertType.WARNING, "Import completed with warnings",
+                        summary + "\n\n" + String.join("\n", result.errors()));
+            }
+        });
+    }
+
+    private void onSaveStructured(Serializer<BookCatalogData> selectedSerializer,
+                                  String format, String pattern) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Export " + format + " catalog");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(format + " files", pattern));
+        File selected = chooser.showSaveDialog(stage);
+        if (selected == null) return;
+        Path path = selected.toPath();
+        String extension = pattern.substring(1);
+        if (!path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(extension)) {
+            path = Path.of(path + extension);
+        }
+        if (Files.exists(path)) {
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION, "File exists. Replace it?",
+                    ButtonType.YES, ButtonType.NO);
+            alert.setTitle("Confirm overwrite");
+            alert.setHeaderText(null);
+            if (alert.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) return;
+        }
+        try {
+            selectedSerializer.save(BookDataMapper.toData(store.inOrderBooks()), path);
+            unsavedChanges = false;
+            updateWindowTitle();
+            showAlert(Alert.AlertType.INFORMATION, "Export complete",
+                    "Exported " + store.size() + " books to:\n" + path);
+        } catch (IOException | RuntimeException ex) {
+            showError("Export failed:\n" + ex.getMessage());
+        }
     }
 
     private void onGenerate() {
