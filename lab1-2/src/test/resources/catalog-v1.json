@@ -1,0 +1,17 @@
+{
+  "formatVersion": 1,
+  "books": [
+    {
+      "type": "BOOK",
+      "isbn": "9780000000001",
+      "title": "Fixture book",
+      "author": "Fixture author",
+      "year": 2022,
+      "genre": "Fiction",
+      "onHands": false,
+      "condition": null,
+      "course": 0,
+      "printRun": 0
+    }
+  ]
+}
