@@ -51,7 +51,7 @@ public final class BinaryBookSerializer implements Serializer<BookCatalogData> {
             }
             try (ObjectInputStream objects = new ObjectInputStream(raw)) {
                 objects.setObjectInputFilter(info -> {
-                    if (info.depth() > 30 || info.references() > 1_000_000
+                    if (info.depth() > 30 || info.references() > 5_000_000
                             || info.arrayLength() > 1_000_000) {
                         return ObjectInputFilter.Status.REJECTED;
                     }
