@@ -261,15 +261,18 @@ public class MainFrame extends BorderPane {
                         fraction -> updateProgress(fraction, 1.0));
                 List<Book> loaded = BookDataMapper.fromData(catalogData);
                 BstBookStore replacement = new BstBookStore();
+                List<String> errors = new ArrayList<>();
                 int accepted = 0;
                 for (Book book : loaded) {
                     if (isCancelled()) throw new java.util.concurrent.CancellationException();
-                    try { replacement.add(book); accepted++; }
-                    catch (IllegalArgumentException ex) {
+                    try {
+                        replacement.add(book);
+                        accepted++;
+                    } catch (IllegalArgumentException ex) {
                         errors.add("Не добавлена книга «" + book.getTitle() + "»: " + ex.getMessage());
                     }
                 }
-                return new LoadedCatalog(replacement.inOrderBooks(), List.of(), accepted, loaded.size());
+                return new LoadedCatalog(replacement.inOrderBooks(), errors, accepted, loaded.size());
             }
         };
         showProgressTask("Загрузка CSV", "Чтение файла и построение дерева…", task, () -> {
