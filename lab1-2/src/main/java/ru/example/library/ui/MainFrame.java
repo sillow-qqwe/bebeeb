@@ -13,8 +13,6 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
-import ru.example.library.io.CsvSerializer;
-import ru.example.library.io.DefaultCsvSerializer;
 import ru.example.library.io.BinaryBookSerializer;
 import ru.example.library.io.BookCatalogData;
 import ru.example.library.io.BookDataMapper;
@@ -41,7 +39,6 @@ public class MainFrame extends BorderPane {
     private static final String BASE_TITLE = "Лабораторная работа №2 — Электронная библиотека";
 
     private final Stage stage;
-    private final CsvSerializer serializer = new DefaultCsvSerializer();
     private final BstBookStore store = new BstBookStore();
     private final ObservableList<Book> books = FXCollections.observableArrayList();
     private final TableView<Book> table = new TableView<>(books);
@@ -260,7 +257,10 @@ public class MainFrame extends BorderPane {
         Task<LoadedCatalog> task = new Task<>() {
             @Override protected LoadedCatalog call() throws Exception {
                 List<String> errors = new ArrayList<>();
-                List<Book> loaded = serializer.load(file.toPath(), errors, fraction -> updateProgress(fraction, 1.0));
+                Serializer<BookCatalogData> csvSerializer = new ru.example.library.io.CsvBookSerializer();
+                BookCatalogData catalogData = csvSerializer.load(file.toPath());
+                List<Book> loaded = BookDataMapper.fromData(catalogData);
+                updateProgress(1, 1);
                 BstBookStore replacement = new BstBookStore();
                 int accepted = 0;
                 for (Book book : loaded) {
@@ -462,7 +462,8 @@ public class MainFrame extends BorderPane {
             if (alert.showAndWait().orElse(ButtonType.NO) != ButtonType.YES) return false;
         }
         try {
-            serializer.save(path, store.inOrderBooks());
+            new ru.example.library.io.CsvBookSerializer().save(
+                    BookDataMapper.toData(store.inOrderBooks()), path);
             unsavedChanges = false;
             updateWindowTitle();
             showAlert(Alert.AlertType.INFORMATION, "Сохранение завершено",
