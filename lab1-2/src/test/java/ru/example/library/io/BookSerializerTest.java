@@ -49,6 +49,15 @@ class BookSerializerTest {
     }
 
     @Test
+    void csvUsesTheSameSerializerContract() throws IOException {
+        CsvBookSerializer csv = new CsvBookSerializer();
+        Path file = tempDir.resolve("catalog.csv");
+        csv.save(sampleData(), file);
+        assertEquals("csv", csv.format());
+        assertEquals(sampleData(), csv.load(file));
+    }
+
+    @Test
     void mapperRoundTripPreservesSubtypeInformation() throws IOException {
         List<Book> restored = BookDataMapper.fromData(sampleData());
         assertEquals(Book.class, restored.get(0).getClass());
