@@ -57,9 +57,15 @@ public final class BinaryBookSerializer implements Serializer<BookCatalogData> {
                     }
                     Class<?> type = info.serialClass();
                     if (type == null || type.isPrimitive()) return ObjectInputFilter.Status.UNDECIDED;
+                    if (type.isArray()) {
+                        Class<?> component = type.getComponentType();
+                        return component == Object.class || component == String.class
+                                ? ObjectInputFilter.Status.ALLOWED : ObjectInputFilter.Status.REJECTED;
+                    }
                     String name = type.getName();
                     if (name.startsWith("ru.example.library.io.")
                             || name.startsWith("java.util.")
+                            || name.equals("java.lang.Object")
                             || name.equals("java.lang.String")
                             || name.equals("java.lang.Integer")) {
                         return ObjectInputFilter.Status.ALLOWED;
