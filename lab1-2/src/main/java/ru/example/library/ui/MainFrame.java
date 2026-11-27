@@ -256,11 +256,10 @@ public class MainFrame extends BorderPane {
 
         Task<LoadedCatalog> task = new Task<>() {
             @Override protected LoadedCatalog call() throws Exception {
-                List<String> errors = new ArrayList<>();
                 Serializer<BookCatalogData> csvSerializer = new ru.example.library.io.CsvBookSerializer();
-                BookCatalogData catalogData = csvSerializer.load(file.toPath());
+                BookCatalogData catalogData = csvSerializer.load(file.toPath(),
+                        fraction -> updateProgress(fraction, 1.0));
                 List<Book> loaded = BookDataMapper.fromData(catalogData);
-                updateProgress(1, 1);
                 BstBookStore replacement = new BstBookStore();
                 int accepted = 0;
                 for (Book book : loaded) {
@@ -270,8 +269,7 @@ public class MainFrame extends BorderPane {
                         errors.add("Не добавлена книга «" + book.getTitle() + "»: " + ex.getMessage());
                     }
                 }
-                updateProgress(1, 1);
-                return new LoadedCatalog(replacement.inOrderBooks(), errors, accepted, loaded.size());
+                return new LoadedCatalog(replacement.inOrderBooks(), List.of(), accepted, loaded.size());
             }
         };
         showProgressTask("Загрузка CSV", "Чтение файла и построение дерева…", task, () -> {
